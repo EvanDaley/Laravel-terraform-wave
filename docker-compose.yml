@@ -1,63 +1,109 @@
-# For more information: https://laravel.com/docs/sail
-version: '3'
-services:
-    laravel.test:
-        build:
-            context: ./vendor/laravel/sail/runtimes/8.0
-            dockerfile: Dockerfile
-            args:
-                WWWGROUP: '${WWWGROUP}'
-        image: sail-8.0/app
-        ports:
-            - '${APP_PORT:-80}:80'
-        environment:
-            WWWUSER: '${WWWUSER}'
-            LARAVEL_SAIL: 1
-        volumes:
-            - '.:/var/www/html'
-        networks:
-            - sail
-        depends_on:
-            - mysql
-            - redis
-    mysql:
-        image: 'mysql:5.7'
-        ports:
-            - '${FORWARD_DB_PORT:-3306}:3306'
-        environment:
-            MYSQL_ROOT_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_DATABASE: '${DB_DATABASE}'
-            MYSQL_USER: '${DB_USERNAME}'
-            MYSQL_PASSWORD: '${DB_PASSWORD}'
-            MYSQL_ALLOW_EMPTY_PASSWORD: 'yes'
-        volumes:
-            - 'sailmysql:/var/lib/mysql'
-        networks:
-            - sail
-        healthcheck:
-          test: ["CMD", "mysqladmin", "ping"]
-    redis:
-        image: 'redis:alpine'
-        ports:
-            - '${FORWARD_REDIS_PORT:-6379}:6379'
-        volumes:
-            - 'sailredis:/data'
-        networks:
-            - sail
-        healthcheck:
-          test: ["CMD", "redis-cli", "ping"]
-    mailhog:
-        image: 'mailhog/mailhog:latest'
-        ports:
-            - '${FORWARD_MAILHOG_PORT:-1025}:1025'
-            - '${FORWARD_MAILHOG_DASHBOARD_PORT:-8025}:8025'
-        networks:
-            - sail
+version: '2'
+
 networks:
-    sail:
-        driver: bridge
-volumes:
-    sailmysql:
-        driver: local
-    sailredis:
-        driver: local
+  network:
+    driver: bridge
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    networks:
+      - network
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: "eu-west-1"
+        awslogs-group: "laravel"
+        awslogs-create-group: "true"
+    env_file:
+        - docker-compose.env
+
+#  cron:
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    logging:
+#      driver: awslogs
+#      options:
+#        awslogs-region: "eu-west-3"
+#        awslogs-group: "laravel-cron"
+#        awslogs-create-group: "true"
+#    command: ["/bin/sh", "-c", "env /bin/bash -o posix -c 'export -p' > /etc/cron.d/project_env.sh && chmod +x /etc/cron.d/project_env.sh && crontab /etc/cron.d/artisan-schedule-run && cron && tail -f /var/log/cron.log"]
+#    networks:
+#        - network
+#    env_file:
+#        - docker-compose.env
+
+#  worker:
+#    depends_on:
+#      - redis
+#    build:
+#      context: .
+#      dockerfile: Dockerfile
+#    logging:
+#      driver: awslogs
+#      options:
+#        awslogs-region: "us-east-1"
+#        awslogs-group: "laravel-worker"
+#        awslogs-create-group: "true"
+#    command: ["php", "artisan", "queue:work"]
+#    networks:
+#        - network
+#    env_file:
+#        - docker-compose.env
+
+  nginx:
+    build:
+      context: .
+      dockerfile: Dockerfile-nginx
+    ports:
+      - "80:80"
+      - "443:443"
+    networks:
+      - network
+    logging:
+      driver: awslogs
+      options:
+        awslogs-region: "eu-west-1"
+        awslogs-group: "nginx"
+        awslogs-create-group: "true"
+    links:
+        - app
+
+#  postgres:
+#    image: postgres:9.6
+#    logging:
+#      driver: awslogs
+#      options:
+#        awslogs-region: "us-east-1"
+#        awslogs-group: "postgresql"
+#        awslogs-create-group: "true"
+#    volumes:
+#      - dbdata:/var/lib/postgresql/data
+#    ports:
+#      - "5432:5432"
+#    environment:
+#      - POSTGRES_DB
+#      - POSTGRES_USER
+#      - POSTGRES_PASSWORD
+#    env_file:
+#        - docker-compose.env
+#    networks:
+#      - network
+
+#  redis:
+#    image: redis
+#    logging:
+#      driver: awslogs
+#      options:
+#        awslogs-region: "eu-west-3"
+#        awslogs-group: "redis"
+#        awslogs-create-group: "true"
+#    networks:
+#      - network
+
+#volumes:
+#  dbdata:
+#    driver: local
